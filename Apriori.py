@@ -95,15 +95,31 @@ def apriori_2(itemset, bd, min_sup, min_conf):
     ass_rules[1] = prune(ass_rules[1],min_sup, min_conf)
     return ass_rules
 
-# mostrando as regras achadas com confiança maior que 0.2
-# apriori_2(itemset, transactions, 0.0, 0.2)[0]
+# mostrando as regras achadas com confiança maior que 0.6
+# apriori_2(itemset, transactions, 0.00001, 0.6)[0]
 
 # mostrando regras do produto com o próprio produto (ex: anel -> anel)
-rules_with_one_product = pd.DataFrame(apriori_2(itemset, transactions, 0.0, 0.2)[0])
-# print("Regras com 1 produto")
-# rules_with_one_product
+rules_with_one_product = pd.DataFrame(apriori_2(itemset, transactions, 0.00001, 0.6)[0])
+print("-----------------------------------------------------------")
+print("-- Regras com 1 produto")
+print("-----------------------------------------------------------")
+print(rules_with_one_product)
 
 # mostrando regras com 2 produtos diferentes (ex: colar -> brinco)
-rules_with_more_products = pd.DataFrame(apriori_2(itemset, transactions, 0.0, 0.2)[1])
-print("Regras com 2 produtos")
+rules_with_more_products = pd.DataFrame(apriori_2(itemset, sorted(transactions), 0.00001, 0.6)[1])
+print("-----------------------------------------------------------")
+print("-- Regras com 2 produtos")
+print("-----------------------------------------------------------")
 print(rules_with_more_products)
+
+# usando a biblioteca apyori
+from apyori import apriori
+results = list(apriori(transactions, min_support=0.00001, min_confidence=0.60))
+rules = []
+for result in results:
+    rules.append({"Produtos":result.items, "Suporte": result.support, "Confiança":  result.ordered_statistics[0].confidence})
+
+print("-----------------------------------------------------------")
+print("-- Usando a biblioteca Apyori")
+print("-----------------------------------------------------------")
+print(pd.DataFrame(rules))
