@@ -1,4 +1,4 @@
-<h1 align="center">🎯 Sistema de recomendação com aplicação do algotirmo Apriori 🎯</h1>
+<h1 align="center">🎯 Aplicação do algotirmo Apriori 🎯</h1>
 
 <p align="center">
 
