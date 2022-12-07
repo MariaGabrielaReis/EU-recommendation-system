@@ -1,41 +1,26 @@
 # Author: Fabrício G. M. de Carvalho, Ph.D
 # Student: Maria Gabriela Reis
 
-# linear algebra
-import numpy as np 
-# data processing, CSV file I/O (e.g. pd.read_csv)
-import pandas as pd 
+import numpy as np  # linear algebra
+import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
 
 # lendo o arquivo csv
-df = pd.read_csv('./jewelry.csv')
-
-# formatando a coluna do produto (ex: "jewelry.ring" -> "ring")
-df['jewelry.earring'] = df['jewelry.earring'].apply(lambda x: x if x is np.nan or isinstance(x, int) else str(x).split('.')[1])
-
-# renomeando as colunas necessárias
-df.rename(columns={'2018-12-01 11:40:29 UTC': 'Data e hora',
-                   '1924719191579951782': 'ID do pedido',
-                   'jewelry.earring': 'Produto',
-                   'Unnamed: 9':'Gênero'
-                  },
-          inplace=True, errors='raise')
+df = pd.read_csv('./bread_basket.csv')
 
 # selecionando as colunas necessárias e mostrando
-cols = ['Data e hora', "ID do pedido", "Produto"]
-df = df[cols].sort_values("Data e hora").dropna()
+cols = ['Transaction', "Item", "date_time"]
+df = df[cols].dropna()
 
 # capturando os dados dos produtos e montando as transações
 order_products = []
 all_procucts = []
 
-for name, group in df.head(5000).groupby("ID do pedido"):
+for name, group in df.head(5000).groupby("Transaction"):
     products = []
-    for product in group["Produto"].values:
+    for product in group["Item"].values:
         all_procucts.append(product)
         products.append(product) 
-    order_products.append(products)
-    
-# print(set(df['Produto']))
+    order_products.append(set(products))
 
 # usando o algoritmo Apriori na base de dados
 itemset = list(set(all_procucts))
@@ -66,60 +51,59 @@ def confidence(Ix, Iy, bd):
 def prune(ass_rules, min_sup, min_conf):
     pruned_ass_rules = []
     for ar in ass_rules:
-        if ar['support'] >= min_sup and ar['confidence'] >= min_conf:
+        if ar['Suporte'] >= min_sup and ar['Confiança'] >= min_conf:
             pruned_ass_rules.append(ar)
     return pruned_ass_rules
 
-# Apriori para associações entre 2 itens
+# Apriori para associações
 def apriori_2(itemset, bd, min_sup, min_conf):
     ass_rules = []
     ass_rules.append([]) # nível 1 (grandes conjuntos de itens)
     for item in itemset:
         sup = support({item},{item},bd)
-        ass_rules[0].append({'rule': str(item), \
-                             'support':sup, \
-                             'confidence': 1})        
+        ass_rules[0].append({'Regra': str(item), \
+                             'Suporte':sup, \
+                             'Confiança': 1})        
     ass_rules[0] = prune(ass_rules[0],min_sup, min_conf)
     ass_rules.append([]) # nível 2 (associação de 2 itens)
     for item_1 in ass_rules[0]:
         for item_2 in ass_rules[0]:
-            if item_1['rule'] != item_2['rule']:
-                rule = item_1['rule']+'_'+item_2['rule']
-                Ix = {item_1['rule']}
-                Iy = {item_2['rule']}
+            if item_1['Regra'] != item_2['Regra']:
+                rule = item_1['Regra']+'_'+item_2['Regra']
+                Ix = {item_1['Regra']}
+                Iy = {item_2['Regra']}
                 sup = support(Ix,Iy, bd)
                 conf = confidence(Ix, Iy, bd)
-                ass_rules[1].append({'rule':rule, \
-                                     'support': sup, \
-                                     'confidence': conf})
+                ass_rules[1].append({'Regra':rule, \
+                                     'Suporte': sup, \
+                                     'Confiança': conf})
     ass_rules[1] = prune(ass_rules[1],min_sup, min_conf)
     return ass_rules
 
-# mostrando as regras achadas com confiança maior que 0.6
-# apriori_2(itemset, transactions, 0.00001, 0.6)[0]
+# Mostrando todos os produtos
+print("-----------------------------------------------------------")
+print("-- Todos os produtos ")
+print("-----------------------------------------------------------")
+itemset_df = []
+for item in itemset:
+    itemset_df.append({"Produtos":item})
+print(pd.DataFrame(itemset_df))
 
-# mostrando regras do produto com o próprio produto (ex: anel -> anel)
-rules_with_one_product = pd.DataFrame(apriori_2(itemset, transactions, 0.00001, 0.6)[0])
+# mostrando as regras achadas com suporte maior que 0.05 e confiança maior que 0.1
 print("-----------------------------------------------------------")
-print("-- Regras com 1 produto")
+print("-- Regras ")
 print("-----------------------------------------------------------")
-print(rules_with_one_product)
-
-# mostrando regras com 2 produtos diferentes (ex: colar -> brinco)
-rules_with_more_products = pd.DataFrame(apriori_2(itemset, sorted(transactions), 0.00001, 0.6)[1])
-print("-----------------------------------------------------------")
-print("-- Regras com 2 produtos")
-print("-----------------------------------------------------------")
-print(rules_with_more_products)
+rules = pd.DataFrame(apriori_2(itemset, transactions, 0.05, 0.1)[1])
+print(rules)
 
 # usando a biblioteca apyori
 from apyori import apriori
-results = list(apriori(transactions, min_support=0.00001, min_confidence=0.60))
-rules = []
+results = list(apriori(transactions, min_support=0.05, min_confidence=0.1))
+rules_apyori = []
 for result in results:
-    rules.append({"Produtos":result.items, "Suporte": result.support, "Confiança":  result.ordered_statistics[0].confidence})
+    rules_apyori.append({"Regra":result.items, "Suporte": result.support, "Confiança":  result.ordered_statistics[0].confidence})
 
 print("-----------------------------------------------------------")
 print("-- Usando a biblioteca Apyori")
 print("-----------------------------------------------------------")
-print(pd.DataFrame(rules))
+print(pd.DataFrame(rules_apyori))
