@@ -1,109 +1,71 @@
-# Author: Fabrício G. M. de Carvalho, Ph.D
-# Student: Maria Gabriela Reis
+import pandas as pd
+import numpy as np
 
-import numpy as np  # linear algebra
-import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
+import matplotlib.pyplot as plt
+import seaborn as sns
+sns.set_style("darkgrid")
 
-# lendo o arquivo csv
-df = pd.read_csv('./bread_basket.csv')
+from mlxtend.frequent_patterns import association_rules, apriori
 
-# selecionando as colunas necessárias e mostrando
-cols = ['Transaction', "Item", "date_time"]
-df = df[cols].dropna()
+import warnings
+warnings.filterwarnings('ignore')
 
-# capturando os dados dos produtos e montando as transações
-order_products = []
-all_procucts = []
+# Acessando os dados pelo csv
+data = pd.read_csv("./bread_basket.csv")
+data['date_time'] = pd.to_datetime(data['date_time'])
+data['time'] = data['date_time'].dt.time
+data.drop('date_time', axis = 1, inplace = True)
+data.head(5)
 
-for name, group in df.head(5000).groupby("Transaction"):
-    products = []
-    for product in group["Item"].values:
-        all_procucts.append(product)
-        products.append(product) 
-    order_products.append(set(products))
 
-# usando o algoritmo Apriori na base de dados
-itemset = list(set(all_procucts))
-transactions = order_products
+# Análises de dados (sem IA)
+# Mesmo sem utilizar inteligências artificiais conseguimos obter análises ricas dos dados que seriam
+# o suficiente para já melhorar o serviço do estabelecimento, como os gráficos abaixo:
 
-# Cálculo do suporte
-def support(Ix, Iy, bd):
-    sup = 0
-    for transaction in bd:
-        if (Ix.union(Iy)).issubset(transaction):
-            sup+=1
-    sup = sup/len(bd)
-    return sup
+plt.figure(figsize=(10,5))
+sns.barplot(x = data.Item.value_counts().head(5).index, y = data.Item.value_counts().head(5).values, color='pink')
+plt.xlabel('Items', size = 15)
+plt.xticks(rotation=45)
+plt.ylabel('Count of Items', size = 15)
+plt.title('Top 5 Items purchased by customers', color = 'black', size = 20)
+# plt.show()
 
-# Cálculo de confiança
-def confidence(Ix, Iy, bd):
-    Ix_count = 0
-    Ixy_count = 0
-    for transaction in bd:
-        if Ix.issubset(transaction):
-            Ix_count+=1
-            if (Ix.union(Iy)).issubset(transaction):
-                Ixy_count += 1
-    conf = Ixy_count / Ix_count
-    return conf
+plt.figure(figsize=(10,5))
+sns.barplot(x = data.period_day.value_counts().index, y = data.period_day.value_counts().values, color='pink')
+plt.xlabel('Period', size = 15)
+plt.ylabel('Orders per period', size = 15)
+plt.title('Number of orders received in each period of a day', color = 'green', size = 20)
+# plt.show()
 
-# Calculando as regras que não entram nos limites de suporte e confiança
-def prune(ass_rules, min_sup, min_conf):
-    pruned_ass_rules = []
-    for ar in ass_rules:
-        if ar['Suporte'] >= min_sup and ar['Confiança'] >= min_conf:
-            pruned_ass_rules.append(ar)
-    return pruned_ass_rules
+df = data.groupby(['period_day','Item'])['Transaction'].count().reset_index().sort_values(['period_day','Transaction'],ascending=False)
+day = ['morning','afternoon','evening','night']
 
-# Apriori para associações
-def apriori_2(itemset, bd, min_sup, min_conf):
-    ass_rules = []
-    ass_rules.append([]) # nível 1 (grandes conjuntos de itens)
-    for item in itemset:
-        sup = support({item},{item},bd)
-        ass_rules[0].append({'Regra': str(item), \
-                             'Suporte':sup, \
-                             'Confiança': 1})        
-    ass_rules[0] = prune(ass_rules[0],min_sup, min_conf)
-    ass_rules.append([]) # nível 2 (associação de 2 itens)
-    for item_1 in ass_rules[0]:
-        for item_2 in ass_rules[0]:
-            if item_1['Regra'] != item_2['Regra']:
-                rule = item_1['Regra']+'_'+item_2['Regra']
-                Ix = {item_1['Regra']}
-                Iy = {item_2['Regra']}
-                sup = support(Ix,Iy, bd)
-                conf = confidence(Ix, Iy, bd)
-                ass_rules[1].append({'Regra':rule, \
-                                     'Suporte': sup, \
-                                     'Confiança': conf})
-    ass_rules[1] = prune(ass_rules[1],min_sup, min_conf)
-    return ass_rules
+plt.figure(figsize=(15,8))
+for i,j in enumerate(day):
+    plt.subplot(2,2,i+1)
+    df1 = df[df.period_day==j].head(10)
+    sns.barplot(data=df1, y=df1.Item, x=df1.Transaction, color='pink')
+    plt.xlabel('')
+    plt.ylabel('')
+    plt.title('Top 10 items people like to order in "{}"'.format(j), size=13)
 
-# Mostrando todos os produtos
-print("-----------------------------------------------------------")
-print("-- Todos os produtos ")
-print("-----------------------------------------------------------")
-itemset_df = []
-for item in itemset:
-    itemset_df.append({"Produtos":item})
-print(pd.DataFrame(itemset_df))
+# plt.show()
 
-# mostrando as regras achadas com suporte maior que 0.05 e confiança maior que 0.1
-print("-----------------------------------------------------------")
-print("-- Regras ")
-print("-----------------------------------------------------------")
-rules = pd.DataFrame(apriori_2(itemset, transactions, 0.05, 0.1)[1])
-print(rules)
 
-# usando a biblioteca apyori
-from apyori import apriori
-results = list(apriori(transactions, min_support=0.05, min_confidence=0.1))
-rules_apyori = []
-for result in results:
-    rules_apyori.append({"Regra":result.items, "Suporte": result.support, "Confiança":  result.ordered_statistics[0].confidence})
+# Utilizando o APRIORI
+df = data.groupby(['Transaction','Item'])['Item'].count().reset_index(name='Count')
+my_basket = df.pivot_table(index='Transaction', columns='Item', values='Count', aggfunc='sum').fillna(0)
 
-print("-----------------------------------------------------------")
-print("-- Usando a biblioteca Apyori")
-print("-----------------------------------------------------------")
-print(pd.DataFrame(rules_apyori))
+def encode(x):
+    if x<=0:
+        return 0
+    if x>=1:
+        return 1
+    
+my_basket_sets = my_basket.applymap(encode)
+frequent_itemsets = apriori(my_basket_sets, min_support = 0.01, use_colnames = True)
+# frequent_itemsets
+
+rules = association_rules(frequent_itemsets, metric = "lift", min_threshold = 1)
+rules.sort_values('confidence', ascending = False, inplace = True)
+rules
